@@ -1,25 +1,37 @@
-#加载必要的库
-from __future__ import print_function
-
+# 加载必要库
 import math
-
+# display模块可以决定显示的内容以何种格式显示
 from IPython import display
-#图形输出
-from matplotlib import cm
+# matplotlib为python的2D绘图库
+# cm为颜色映射表
+from matplotlib import cm  
+# 使用 GridSpec 自定义子图位置
 from matplotlib import gridspec
+# pyplot提供了和matlab类似的绘图API，方便用户快速绘制2D图表
 from matplotlib import pyplot as plt
-#计算
-import numpy as np
-#数据类型
-import pandas as pd
+# numpy为python的科学计算包，提供了许多高级的数值编程工具
+import numpy as np    
+# pandas是基于numpy的数据分析包，是为了解决数据分析任务而创建的    
+import pandas as pd     
+# sklearn(scikit-_learn_)是一个机器学习算法库,包含了许多种机器学习得方式
+# *   Classification 分类
+# *   Regression 回归
+# *   Clustering 非监督分类
+# *   Dimensionality reduction 数据降维
+# *   Model Selection 模型选择
+# *   Preprocessing 数据预处理 
+# metrics:度量（字面意思），它提供了很多模块可以为第三方库或者应用提供辅助统计信息
 from sklearn import metrics
-#AI模型
-import tensorflow as tf
+# tensorflow是谷歌的机器学习框架
+import tensorflow as tf   
+# Dataset无比强大得数据集
 from tensorflow.data import Dataset
 
 tf.logging.set_verbosity(tf.logging.ERROR)
+# 为了观察数据方便，最多只显示10行数据
 pd.options.display.max_rows = 10
 pd.options.display.float_format = '{:.1f}'.format
+
 
 #加载数据集
 #读取CSV    分隔符：，
@@ -27,6 +39,9 @@ california_housing_dataframe = pd.read_csv("https://download.mlcc.google.cn/mled
 
 print(california_housing_dataframe)
 
+# california_housing_dataframe.index原始序列集索引
+# np.random.permutation（）随机打乱原索引顺序
+# california_housing_dataframe.reindex（）以新的索引顺序重新分配索引
 #对数据进行随机化处理，以确保不会出现任何病态排序结果（可能会损害随机梯度下降法的效果）
 california_housing_dataframe = california_housing_dataframe.reindex(
     np.random.permutation(california_housing_dataframe.index))
@@ -83,19 +98,36 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     Returns:
       Tuple of (features, labels) for next data batch
     """
-  
-    # Convert pandas data into a dict of np arrays.
+    # 自定义个输入函数
+    # 输入的参数分别为 
+    # features:特征值（房间数量）
+    # targets: 目标值（房屋价格中位数）
+    # batch_size:每次处理训练的样本数（这里设置为1）
+    # shuffle: 如果 `shuffle` 设置为 `True`，则我们会对数据进行随机处理
+    # num_epochs:将默认值 `num_epochs=None` 传递到 `repeat()`，输入数据会无限期重复
+
+    # dict(features).items():将输入的特征值转换为dictinary（python的一种数据类型，
+    # lalala = {'Google': 'www.google.com', 'Runoob': 'www.runoob.com'}）
+    # 通过for语句遍历，得到其所有的一一对应的值（key：value）
     features = {key:np.array(value) for key,value in dict(features).items()}                                           
- 
-    # Construct a dataset, and configure batching/repeating.
+    # Dataset.from_tensor_slices（(features,targets)）将输入的两个参数拼接组合起来，
+    # 形成一组一组的**切片**张量{（房间数，价格），（房间数，价格）....}
     ds = Dataset.from_tensor_slices((features,targets)) # warning: 2GB limit
+    # batch(batch_size):将ds数据集按照batch_size大小组合成一个batch
+    # repeat(num_epochs):repeat代表从ds这个数据集要重复读取几次，在这里num_epochs=None
+    # 代表无限次重复下去，但是因为ds数据集有容量上限，所以会在上限出停止重复
     ds = ds.batch(batch_size).repeat(num_epochs)
-    
-    # Shuffle the data, if specified.
+    # Shuffle the data, if specified
+    # 现在ds中得数据集已经时按照batchsize组合成得一个一个batch，存放在队列中，并且是重复了n次
+    # 这样子得话，不断重复，后面数据是没有意义，所以要将其随机打乱
+    # shuffle(buffer_size=10000):表示打乱得时候使用得buffer大小是10000，即ds中按顺序取10000个出来
+    # 打乱放回去，接着从后面再取10000个，按顺序来                        
     if shuffle:
-      ds = ds.shuffle(buffer_size=10000)
+        # make_one_shot_iterator():最简单的一种迭代器，仅会对数据集遍历一遍
+        # make_one_shot_iterator().get_next():迭代的时候返回所有的结果   
+        ds = ds.shuffle(buffer_size=10000)
     
-    # Return the next batch of data.
+    # 向 LinearRegressor 返回下一批数据
     features, labels = ds.make_one_shot_iterator().get_next()
     return features, labels
 
@@ -177,6 +209,11 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
 # # Display graph.
 # plt.show()
 
+# 定义个函数融合上面所有的操作，以下是参数说明，并顺便复习以下上面的内容
+# learning_rate:学习速率（步长）,可以调节梯度下降的速度
+# steps:训练步数，越久效果一般会越准确，但花费的时间也是越多的
+# batch_size:每次处理训练的样本数（将原来数据打包成一块一块的，块的大小）
+# input_feature:输入的特征
 def train_model(learning_rate, steps, batch_size, input_feature="total_rooms"):
   """Trains a linear regression model of one feature.
   
@@ -188,25 +225,33 @@ def train_model(learning_rate, steps, batch_size, input_feature="total_rooms"):
     input_feature: A `string` specifying a column from `california_housing_dataframe`
       to use as input feature.
   """
-  
+  #    将步长分十份，用于每训练十分之一的步长就输出一次结果
   periods = 10
   steps_per_period = steps / periods
 
+  # 以下是准备数据,分别是my_feature_data 和 targets
   my_feature = input_feature
   my_feature_data = california_housing_dataframe[[my_feature]]
   my_label = "median_house_value"
   targets = california_housing_dataframe[my_label]
 
-  # Create feature columns.
+  # 创建特征列
   feature_columns = [tf.feature_column.numeric_column(my_feature)]
   
-  # Create input functions.
+  # 创建输入函数（训练和预测）
   training_input_fn = lambda:my_input_fn(my_feature_data, targets, batch_size=batch_size)
   prediction_input_fn = lambda: my_input_fn(my_feature_data, targets, num_epochs=1, shuffle=False)
   
   # Create a linear regressor object.
-  my_optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+  my_optimizer=tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+  # 这里的clip_by_norm是指对梯度进行裁剪，通过控制梯度的最大范式，防止梯度爆炸的问题，是一种
+  # 比较常用的梯度规约的方式，解释起来太费事啦。。。。略略
   my_optimizer = tf.contrib.estimator.clip_gradients_by_norm(my_optimizer, 5.0)
+  # Configure the linear regression model with our feature columns and optimizer
+  # Set a learning rate of 0.0000001 for Gradient Descent.
+  # 线性回归模型，tf.estimator.LinearRegressor是tf.estimator.Estimator的子类
+  # 传入参数为**特征**列和刚才配置的**优化器**，至此线性回归模型就配置的差不多啦
+  # 前期需要配置模型，所以是与具体数据（特征值，目标值是无关的）
   linear_regressor = tf.estimator.LinearRegressor(
       feature_columns=feature_columns,
       optimizer=my_optimizer
@@ -222,8 +267,8 @@ def train_model(learning_rate, steps, batch_size, input_feature="total_rooms"):
   plt.scatter(sample[my_feature], sample[my_label])
   #等差数列linspace(开始，结束，个数)
   #TODO:取得方法调查
-  #colors = [cm.get_cmap(lut=x) for x in np.linspace(1, 10, periods)]
-  colors = [cm.coolwarm(x) for x in np.linspace(1, 10, periods)] 
+  #colors = [(20+x,x,x) for x in np.linspace(1, 10, periods)]
+  colors = ['red' for x in np.linspace(1, 10, periods)]
 
   # Train the model, but do so inside a loop so that we can periodically assess
   # loss metrics.
@@ -283,6 +328,6 @@ def train_model(learning_rate, steps, batch_size, input_feature="total_rooms"):
 
 train_model(
     learning_rate=0.00002,
-    steps=500,
+    steps=1000000,
     batch_size=5
 )
